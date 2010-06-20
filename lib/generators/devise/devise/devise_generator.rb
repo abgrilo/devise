@@ -54,7 +54,7 @@ CONTENT
         when "data_mapper"
           inject_into_file model_path, devise_class_setup, :after => "include DataMapper::Resource\n"
         when "mongo_mapper"
-          inject_into_file model_path, devise_class_setup, :after => "include DataMapper::Resource\n"  
+          inject_into_file model_path, devise_class_setup, :after => "include MongoMapper::Document\n"  
         when "active_record"
           inject_into_class model_path, class_name, devise_class_setup + <<-CONTENT
   # Setup accessible (or protected) attributes for your model
