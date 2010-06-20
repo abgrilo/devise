@@ -37,7 +37,7 @@ begin
   require 'jeweler'
   Jeweler::Tasks.new do |s|
     s.name = "devise"
-    s.version = Devise::VERSION
+    s.version = Devise::VERSION.dup
     s.summary = "Flexible authentication solution for Rails with Warden"
     s.email = "contact@plataformatec.com.br"
     s.homepage = "http://github.com/plataformatec/devise"
@@ -45,10 +45,11 @@ begin
     s.authors = ['José Valim', 'Carlos Antônio']
     s.files =  FileList["[A-Z]*", "{app,config,lib}/**/*"]
     s.extra_rdoc_files = FileList["[A-Z]*"] - %w(Gemfile Rakefile)
-    s.add_dependency("warden", "~> 0.9.4")
+    s.add_dependency("warden", "~> 0.10.7")
+    s.add_dependency("bcrypt-ruby", "~> 2.1.2")
   end
 
   Jeweler::GemcutterTasks.new
 rescue LoadError
-  puts "Jeweler, or one of its dependencies, is not available. Install it with: sudo gem install technicalpickles-jeweler -s http://gems.github.com"
+  puts "Jeweler, or one of its dependencies, is not available. Install it with: gem install jeweler"
 end

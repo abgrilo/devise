@@ -1,5 +1,9 @@
+require 'active_support/core_ext/numeric/time'
+require 'active_support/dependencies'
+
 module Devise
   autoload :FailureApp, 'devise/failure_app'
+  autoload :PathChecker, 'devise/path_checker'
   autoload :Schema, 'devise/schema'
   autoload :TestHelpers, 'devise/test_helpers'
 
@@ -20,13 +24,17 @@ module Devise
     autoload :Sha1, 'devise/encryptors/sha1'
   end
 
+  module Strategies
+    autoload :Base, 'devise/strategies/base'
+    autoload :Authenticatable, 'devise/strategies/authenticatable'
+  end
+
   # Constants which holds devise configuration for extensions. Those should
   # not be modified by the "end user".
-  ALL            = []
-  CONTROLLERS    = {}
-  ROUTES         = []
-  STRATEGIES     = []
-  FLASH_MESSAGES = [:unauthenticated]
+  ALL         = []
+  CONTROLLERS = ActiveSupport::OrderedHash.new
+  ROUTES      = ActiveSupport::OrderedHash.new
+  STRATEGIES  = ActiveSupport::OrderedHash.new
 
   # True values used to check params
   TRUE_VALUES = [true, 1, '1', 't', 'T', 'true', 'TRUE']
@@ -41,8 +49,9 @@ module Devise
     :bcrypt => 60
   }
 
-  # Email regex used to validate email formats. Adapted from authlogic.
-  EMAIL_REGEX = /^([\w\.%\+\-]+)@([\w\-]+\.)+([\w]{2,})$/i
+  # Custom domain for cookies. Not set by default
+  mattr_accessor :cookie_domain
+  @@cookie_domain = false
 
   # Used to encrypt password. Please generate one with rake secret.
   mattr_accessor :pepper
@@ -55,6 +64,26 @@ module Devise
   # Keys used when authenticating an user.
   mattr_accessor :authentication_keys
   @@authentication_keys = [ :email ]
+
+  # If http authentication is enabled by default.
+  mattr_accessor :http_authenticatable
+  @@http_authenticatable = true
+
+  # If params authenticatable is enabled by default.
+  mattr_accessor :params_authenticatable
+  @@params_authenticatable = true
+
+  # The realm used in Http Basic Authentication.
+  mattr_accessor :http_authentication_realm
+  @@http_authentication_realm = "Application"
+
+  # Email regex used to validate email formats. Adapted from authlogic.
+  mattr_accessor :email_regexp
+  @@email_regexp = /^([\w\.%\+\-]+)@([\w\-]+\.)+([\w]{2,})$/i
+
+  # Range validation for password length
+  mattr_accessor :password_length
+  @@password_length = 6..20
 
   # Time interval where the remember me token is valid.
   mattr_accessor :remember_for
@@ -70,14 +99,14 @@ module Devise
 
   # Used to define the password encryption algorithm.
   mattr_accessor :encryptor
-  @@encryptor = :sha1
+  @@encryptor = nil
 
   # Store scopes mappings.
   mattr_accessor :mappings
   @@mappings = ActiveSupport::OrderedHash.new
 
   # Tells if devise should apply the schema in ORMs where devise declaration
-  # and schema belongs to the same class (as Datamapper and MongoMapper).
+  # and schema belongs to the same class (as Datamapper and Mongoid).
   mattr_accessor :apply_schema
   @@apply_schema = true
 
@@ -86,14 +115,19 @@ module Devise
   mattr_accessor :scoped_views
   @@scoped_views = false
 
-  # Number of authentication tries before locking an account
-  mattr_accessor :maximum_attempts
-  @@maximum_attempts = 20
+  # Defines which strategy can be used to lock an account.
+  # Values: :failed_attempts, :none
+  mattr_accessor :lock_strategy
+  @@lock_strategy = :failed_attempts
 
   # Defines which strategy can be used to unlock an account.
   # Values: :email, :time, :both
   mattr_accessor :unlock_strategy
   @@unlock_strategy = :both
+
+  # Number of authentication tries before locking an account
+  mattr_accessor :maximum_attempts
+  @@maximum_attempts = 20
 
   # Time interval to unlock the account if :time is defined as unlock_strategy.
   mattr_accessor :unlock_in
@@ -115,9 +149,13 @@ module Devise
   mattr_accessor :token_authentication_key
   @@token_authentication_key = :auth_token
 
-  # The realm used in Http Basic Authentication
-  mattr_accessor :http_authentication_realm
-  @@http_authentication_realm = "Application"
+  mattr_accessor :navigational_formats
+  @@navigational_formats = [:html]
+
+  # Private methods to interface with Warden.
+  mattr_accessor :warden_config
+  @@warden_config = nil
+  @@warden_config_block = nil
 
   # Default way to setup Devise. Run rails generate devise_install to create
   # a fresh initializer with all configuration values.
@@ -125,39 +163,65 @@ module Devise
     yield self
   end
 
+  # Get the mailer class from the mailer reference object.
+  def self.mailer
+    @@mailer_ref.get
+  end
+
+  # Set the mailer reference object to access the mailer.
+  def self.mailer=(class_name)
+    @@mailer_ref = ActiveSupport::Dependencies.ref(class_name)
+  end
+  self.mailer = "Devise::Mailer"
+
+  # Register a model in Devise. You can call this manually if you don't want
+  # to use devise routes. Check devise_for in routes to know which options
+  # are available.
+  def self.add_model(resource, options)
+    mapping = Devise::Mapping.new(resource, options)
+    self.mappings[mapping.name] = mapping
+    self.default_scope ||= mapping.name
+    mapping
+  end
+
   # Make Devise aware of an 3rd party Devise-module. For convenience.
   #
   # == Options:
   #
-  #   +strategy+    - Boolean value representing if this module got a custom *strategy*.
-  #                   Default is +false+. Note: Devise will auto-detect this in such case if this is true.
-  #   +model+       - String representing the load path to a custom *model* for this module (to autoload.)
-  #                   Default is +nil+ (i.e. +false+).
-  #   +controller+  - Symbol representing the name of an exisiting or custom *controller* for this module.
-  #                   Default is +nil+ (i.e. +false+).
-  #   +route+       - Symbol representing the named *router* helper for this module.
-  #                   Default is +nil+ (i.e. +false+).
-  #   +flash+       - Symbol representing the *flash messages* used by this helper.
-  #                   Default is +nil+ (i.e. +false+).
+  #   +model+      - String representing the load path to a custom *model* for this module (to autoload.)
+  #   +controller+ - Symbol representing the name of an exisiting or custom *controller* for this module.
+  #   +route+      - Symbol representing the named *route* helper for this module.
+  #   +flash+      - Symbol representing the *flash messages* used by this helper.
+  #   +strategy+   - Symbol representing if this module got a custom *strategy*.
+  #
+  # All values, except :model, accept also a boolean and will have the same name as the given module
+  # name.
   #
   # == Examples:
   #
   #   Devise.add_module(:party_module)
   #   Devise.add_module(:party_module, :strategy => true, :controller => :sessions)
-  #   Devise.add_module(:party_module, :autoload => 'party_module/model')
+  #   Devise.add_module(:party_module, :model => 'party_module/model')
   #
   def self.add_module(module_name, options = {})
     ALL << module_name
-    options.assert_valid_keys(:strategy, :model, :controller, :route, :flash)
+    options.assert_valid_keys(:strategy, :model, :controller, :route)
 
-    { :strategy => STRATEGIES, :flash => FLASH_MESSAGES, :route => ROUTES }.each do |key, value|
+    config = {
+      :strategy => STRATEGIES,
+      :route => ROUTES,
+      :controller => CONTROLLERS
+    }
+
+    config.each do |key, value|
       next unless options[key]
       name = (options[key] == true ? module_name : options[key])
-      value.unshift(name) unless value.include?(name)
-    end
 
-    if options[:controller]
-      Devise::CONTROLLERS[module_name] = options[:controller].to_sym
+      if value.is_a?(Hash)
+        value[module_name] = name
+      else
+        value << name unless value.include?(name)
+      end
     end
 
     if options[:model]
@@ -165,7 +229,7 @@ module Devise
       Devise::Models.send(:autoload, module_name.to_s.camelize.to_sym, model_path)
     end
 
-    Devise::Mapping.register module_name
+    Devise::Mapping.add_module module_name
   end
 
   # Sets warden configuration using a block that will be invoked on warden
@@ -180,19 +244,23 @@ module Devise
   #    end
   #  end
   def self.warden(&block)
-    @warden_config = block
+    @@warden_config_block = block
   end
 
   # A method used internally to setup warden manager from the Rails initialize
   # block.
-  def self.configure_warden(config) #:nodoc:
-    config.default_strategies *Devise::STRATEGIES
-    config.failure_app = Devise::FailureApp
-    config.silence_missing_strategies!
-    config.default_scope = Devise.default_scope
+  def self.configure_warden! #:nodoc:
+    @@warden_configured ||= begin
+      warden_config.failure_app   = Devise::FailureApp
+      warden_config.default_scope = Devise.default_scope
 
-    # If the user provided a warden hook, call it now.
-    @warden_config.try :call, config
+      Devise.mappings.each_value do |mapping|
+        warden_config.scope_defaults mapping.name, :strategies => mapping.strategies
+      end
+
+      @@warden_config_block.try :call, Devise.warden_config
+      true
+    end
   end
 
   # Generate a friendly string randomically to be used as token.

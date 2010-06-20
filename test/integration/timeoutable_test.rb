@@ -1,4 +1,4 @@
-require 'test/test_helper'
+require 'test_helper'
 
 class SessionTimeoutTest < ActionController::IntegrationTest
 
@@ -32,8 +32,20 @@ class SessionTimeoutTest < ActionController::IntegrationTest
     assert_not_nil last_request_at
 
     get users_path
-    assert_redirected_to new_user_session_path(:timeout => true)
+    assert_redirected_to new_user_session_path
     assert_not warden.authenticated?(:user)
+  end
+
+  test 'time out is not triggered on sign out' do
+    user = sign_in_as_user
+    get expire_user_path(user)
+
+    get destroy_user_session_path
+    assert_response :redirect
+    assert_redirected_to root_path
+
+    follow_redirect!
+    assert_contain 'Signed out successfully'
   end
 
   test 'user configured timeout limit' do
@@ -47,14 +59,14 @@ class SessionTimeoutTest < ActionController::IntegrationTest
 
       get expire_user_path(user)
       get users_path
-      assert_redirected_to new_user_session_path(:timeout => true)
+      assert_redirected_to new_user_session_path
       assert_not warden.authenticated?(:user)
     end
   end
 
   test 'error message with i18n' do
     store_translations :en, :devise => {
-      :sessions => { :user => { :timeout => 'Session expired!' } }
+      :failure => { :user => { :timeout => 'Session expired!' } }
     } do
       user = sign_in_as_user
 

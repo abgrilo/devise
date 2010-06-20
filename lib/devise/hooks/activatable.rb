@@ -1,15 +1,11 @@
-# Deny user access whenever his account is not active yet.
+# Deny user access whenever his account is not active yet. All strategies that inherits from
+# Devise::Strategies::Authenticatable and uses the validate already check if the user is active?
+# before actively signing him in. However, we need this as hook to validate the user activity
+# in each request and in case the user is using other strategies beside Devise ones.
 Warden::Manager.after_set_user do |record, warden, options|
   if record && record.respond_to?(:active?) && !record.active?
     scope = options[:scope]
     warden.logout(scope)
-
-    # If winning strategy was set, this is being called after authenticate and
-    # there is no need to force a redirect.
-    if warden.winning_strategy
-      warden.winning_strategy.fail!(record.inactive_message)
-    else
-      throw :warden, :scope => scope, :message => record.inactive_message
-    end
+    throw :warden, :scope => scope, :message => record.inactive_message
   end
 end

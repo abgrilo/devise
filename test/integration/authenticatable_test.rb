@@ -1,4 +1,4 @@
-require 'test/test_helper'
+require 'test_helper'
 
 class AuthenticationSanityTest < ActionController::IntegrationTest
   test 'home should be accessible without sign in' do
@@ -50,8 +50,36 @@ class AuthenticationSanityTest < ActionController::IntegrationTest
   test 'not signed in as admin should not be able to access admins actions' do
     get admins_path
 
-    assert_redirected_to new_admin_session_path(:unauthenticated => true)
+    assert_redirected_to new_admin_session_path
     assert_not warden.authenticated?(:admin)
+  end
+
+  test 'not signed in as admin should not be able to access private route restricted to admins' do
+    get private_path
+
+    assert_redirected_to new_admin_session_path
+    assert_not warden.authenticated?(:admin)
+  end
+
+  test 'signed in as user should not be able to access private route restricted to admins' do
+    sign_in_as_user
+    assert warden.authenticated?(:user)
+    assert_not warden.authenticated?(:admin)
+
+    get private_path
+    assert_redirected_to new_admin_session_path
+  end
+
+  test 'signed in as admin should be able to access private route restricted to admins' do
+    sign_in_as_admin
+    assert warden.authenticated?(:admin)
+    assert_not warden.authenticated?(:user)
+
+    get private_path
+
+    assert_response :success
+    assert_template 'home/private'
+    assert_contain 'Private!'
   end
 
   test 'signed in as user should not be able to access admins actions' do
@@ -60,7 +88,7 @@ class AuthenticationSanityTest < ActionController::IntegrationTest
     assert_not warden.authenticated?(:admin)
 
     get admins_path
-    assert_redirected_to new_admin_session_path(:unauthenticated => true)
+    assert_redirected_to new_admin_session_path
   end
 
   test 'signed in as admin should be able to access admin actions' do
@@ -107,46 +135,11 @@ class AuthenticationSanityTest < ActionController::IntegrationTest
   end
 end
 
-class AuthenticationTest < ActionController::IntegrationTest
-  test 'sign in should not authenticate if not using proper authentication keys' do
-    swap Devise, :authentication_keys => [:username] do
-      sign_in_as_user
-      assert_not warden.authenticated?(:user)
-    end
-  end
-
-  test 'sign in with invalid email should return to sign in form with error message' do
-    sign_in_as_admin do
-      fill_in 'email', :with => 'wrongemail@test.com'
-    end
-
-    assert_contain 'Invalid email or password'
-    assert_not warden.authenticated?(:admin)
-  end
-
-  test 'sign in with invalid pasword should return to sign in form with error message' do
-    sign_in_as_admin do
-      fill_in 'password', :with => 'abcdef'
-    end
-
-    assert_contain 'Invalid email or password'
-    assert_not warden.authenticated?(:admin)
-  end
-
-  test 'error message is configurable by resource name' do
-    store_translations :en, :devise => { :sessions => { :admin => { :invalid => "Invalid credentials" } } } do
-      sign_in_as_admin do
-        fill_in 'password', :with => 'abcdef'
-      end
-
-      assert_contain 'Invalid credentials'
-    end
-  end
-
+class AuthenticationRedirectTest < ActionController::IntegrationTest
   test 'redirect from warden shows sign in or sign up message' do
     get admins_path
 
-    warden_path = new_admin_session_path(:unauthenticated => true)
+    warden_path = new_admin_session_path
     assert_redirected_to warden_path
 
     get warden_path
@@ -155,51 +148,58 @@ class AuthenticationTest < ActionController::IntegrationTest
 
   test 'redirect to default url if no other was configured' do
     sign_in_as_user
-
     assert_template 'home/index'
-    assert_nil session[:"user.return_to"]
+    assert_nil session[:"user_return_to"]
   end
 
   test 'redirect to requested url after sign in' do
     get users_path
-    assert_redirected_to new_user_session_path(:unauthenticated => true)
-    assert_equal users_path, session[:"user.return_to"]
+    assert_redirected_to new_user_session_path
+    assert_equal users_path, session[:"user_return_to"]
 
     follow_redirect!
     sign_in_as_user :visit => false
 
     assert_template 'users/index'
-    assert_nil session[:"user.return_to"]
+    assert_nil session[:"user_return_to"]
   end
 
   test 'redirect to last requested url overwriting the stored return_to option' do
     get expire_user_path(create_user)
-    assert_redirected_to new_user_session_path(:unauthenticated => true)
-    assert_equal expire_user_path(create_user), session[:"user.return_to"]
+    assert_redirected_to new_user_session_path
+    assert_equal expire_user_path(create_user), session[:"user_return_to"]
 
     get users_path
-    assert_redirected_to new_user_session_path(:unauthenticated => true)
-    assert_equal users_path, session[:"user.return_to"]
+    assert_redirected_to new_user_session_path
+    assert_equal users_path, session[:"user_return_to"]
 
     follow_redirect!
     sign_in_as_user :visit => false
 
     assert_template 'users/index'
-    assert_nil session[:"user.return_to"]
+    assert_nil session[:"user_return_to"]
+  end
+
+  test 'xml http requests does not store urls for redirect' do
+    get users_path, {}, 'HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest'
+    assert_equal 401, response.status
+    assert_nil session[:"user_return_to"]
   end
 
   test 'redirect to configured home path for a given scope after sign in' do
     sign_in_as_admin
     assert_equal "/admin_area/home", @request.path
   end
+end
 
+class AuthenticationSessionTest < ActionController::IntegrationTest
   test 'destroyed account is signed out' do
     sign_in_as_user
     get '/users'
 
     User.destroy_all
     get '/users'
-    assert_redirected_to '/users/sign_in?unauthenticated=true'
+    assert_redirected_to new_user_session_path
   end
 
   test 'allows session to be set by a given scope' do
@@ -207,8 +207,9 @@ class AuthenticationTest < ActionController::IntegrationTest
     get '/users'
     assert_equal "Cart", @controller.user_session[:cart]
   end
+end
 
-  # Scoped views
+class AuthenticationWithScopesTest < ActionController::IntegrationTest
   test 'renders the scoped view if turned on and view is available' do
     swap Devise, :scoped_views => true do
       assert_raise Webrat::NotFoundError do
@@ -226,7 +227,7 @@ class AuthenticationTest < ActionController::IntegrationTest
       end
 
       assert_match /Special user view/, response.body
-      assert !Devise::PasswordsController.scoped_views
+      assert !Devise::PasswordsController.scoped_views?
     ensure
       Devise::SessionsController.send :remove_instance_variable, :@scoped_views
     end
@@ -248,7 +249,6 @@ class AuthenticationTest < ActionController::IntegrationTest
     end
   end
 
-  # Default scope
   test 'uses the mapping from the default scope if specified' do
     swap Devise, :use_default_scope => true do
       get '/sign_in'
@@ -256,8 +256,9 @@ class AuthenticationTest < ActionController::IntegrationTest
       assert_contain 'Sign in'
     end
   end
+end
 
-  # Custom controller
+class AuthenticationOthersTest < ActionController::IntegrationTest
   test 'uses the custom controller with the custom controller view' do
     get '/admin_area/sign_in'
     assert_contain 'Sign in'
@@ -265,16 +266,14 @@ class AuthenticationTest < ActionController::IntegrationTest
     assert_contain 'Welcome to "sessions/new" view!'
   end
 
-  # Access
-  test 'render 404 on roles without permission' do
-    get '/admin_area/password/new', {}, "action_dispatch.show_exceptions" => true
-    assert_response :not_found
-    assert_not_contain 'Send me reset password instructions'
+  test 'render 404 on roles without routes' do
+    get '/admin_area/password/new'
+    assert_equal 404, response.status
   end
 
   test 'render 404 on roles without mapping' do
-    get '/sign_in', {}, "action_dispatch.show_exceptions" => true
-    assert_response :not_found
-    assert_not_contain 'Sign in'
+    assert_raise AbstractController::ActionNotFound do
+      get '/sign_in'
+    end
   end
 end

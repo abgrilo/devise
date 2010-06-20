@@ -1,4 +1,4 @@
-require 'test/test_helper'
+require 'test_helper'
 
 class UnlockInstructionsTest < ActionMailer::TestCase
 
@@ -10,7 +10,7 @@ class UnlockInstructionsTest < ActionMailer::TestCase
   def user
     @user ||= begin
       user = create_user
-      user.lock!
+      user.lock_access!
       user
     end
   end
@@ -27,7 +27,7 @@ class UnlockInstructionsTest < ActionMailer::TestCase
   end
 
   test 'content type should be set to html' do
-    assert_equal 'text/html', mail.content_type
+    assert mail.content_type.include?('text/html')
   end
 
   test 'send unlock instructions to the user email' do
@@ -39,24 +39,24 @@ class UnlockInstructionsTest < ActionMailer::TestCase
   end
 
   test 'setup subject from I18n' do
-    store_translations :en, :devise => { :mailer => { :unlock_instructions => 'Unlock instructions' } } do
-      assert_equal 'Unlock instructions', mail.subject
+    store_translations :en, :devise => { :mailer => { :unlock_instructions =>  { :subject => 'Yo unlock instructions' } } } do
+      assert_equal 'Yo unlock instructions', mail.subject
     end
   end
 
   test 'subject namespaced by model' do
-    store_translations :en, :devise => { :mailer => { :user => { :unlock_instructions => 'User Unlock Instructions' } } } do
+    store_translations :en, :devise => { :mailer => { :unlock_instructions => { :user_subject => 'User Unlock Instructions' } } } do
       assert_equal 'User Unlock Instructions', mail.subject
     end
   end
 
   test 'body should have user info' do
-    assert_match /#{user.email}/, mail.body
+    assert_match(/#{user.email}/, mail.body.encoded)
   end
 
   test 'body should have link to unlock the account' do
     host = ActionMailer::Base.default_url_options[:host]
     unlock_url_regexp = %r{<a href=\"http://#{host}/users/unlock\?unlock_token=#{user.unlock_token}">}
-    assert_match unlock_url_regexp, mail.body
+    assert_match unlock_url_regexp, mail.body.encoded
   end
 end

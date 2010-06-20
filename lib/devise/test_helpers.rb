@@ -15,12 +15,16 @@ module Devise
       def initialize(controller)
         @controller = controller
         manager = Warden::Manager.new(nil) do |config|
-          Devise.configure_warden(config)
+          config.merge! Devise.warden_config
         end
         super(controller.request.env, manager)
       end
 
       def authenticate!(*args)
+        catch_with_redirect { super }
+      end
+
+      def user(*args)
         catch_with_redirect { super }
       end
 
@@ -36,7 +40,8 @@ module Devise
           Warden::Manager._before_failure.each{ |hook| hook.call(env, result) }
 
           status, headers, body = Devise::FailureApp.call(env).to_a
-          @controller.send :redirect_to, headers["Location"]
+          @controller.send :render, :status => status, :text => body,
+            :content_type => headers["Content-Type"], :location => headers["Location"]
         else
           result
         end
