@@ -18,6 +18,14 @@ group :mongoid do
   gem "bson_ext"
 end
 
+group :mongo_mapper do
+  gem "mongo",        ">= 0.18.3"
+  gem "mongo_ext",    ">= 0.18.3", :require => false
+  gem "bson_ext"
+  gem "jnunemaker-validatable",  :git => "git://github.com/BadMinus/validatable.git"
+  gem "mongo_mapper", :git => "git://github.com/BadMinus/mongomapper.git"
+end
+
 # group :data_mapper do
 #   gem "do_sqlite3", '>= 0.10.1'
 #   gem "dm-core", :git => "git://github.com/datamapper/dm-core.git"
