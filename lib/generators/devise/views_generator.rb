@@ -1,7 +1,7 @@
 module Devise
   module Generators
     class ViewsGenerator < Rails::Generators::Base
-      source_root File.expand_path("../../../../../app/views", __FILE__)
+      source_root File.expand_path("../../../../app/views", __FILE__)
       desc "Copies all Devise views to your application."
 
       argument :scope, :required => false, :default => nil,
@@ -11,7 +11,7 @@ module Devise
                                      :desc => "Template engine for the views. Available options are 'erb' and 'haml'."
 
       def copy_views
-        case options[:template_engine]
+        case options[:template_engine].to_s
         when "haml"
           verify_haml_existence
           verify_haml_version
