@@ -1,51 +1,16 @@
 require 'test_helper'
 require 'ostruct'
 
-class MockController < ApplicationController
-  attr_accessor :env
-
-  def request
-    self
-  end
-
-  def path
-    ''
-  end
-
-  def index
-  end
-
-  def host_with_port
-    "test.host:3000"
-  end
-
-  def protocol
-    "http"
-  end
-
-  def script_name
-    ""
-  end
-
-  def symbolized_path_parameters
-    {}
-  end
-end
-
 class ControllerAuthenticableTest < ActionController::TestCase
-  tests MockController
+  tests ApplicationController
 
   def setup
     @mock_warden = OpenStruct.new
-    @controller.env = { 'warden' => @mock_warden }
-  end
-
-  test 'setup warden' do
-    assert_not_nil @controller.warden
+    @controller.request.env['warden'] = @mock_warden
   end
 
   test 'provide access to warden instance' do
-    assert_equal @controller.warden, @controller.env['warden']
+    assert_equal @mock_warden, @controller.warden
   end
 
   test 'proxy signed_in? to authenticated' do
@@ -60,34 +25,49 @@ class ControllerAuthenticableTest < ActionController::TestCase
     @controller.anybody_signed_in?
   end
 
-  test 'proxy current_admin to authenticate with admin scope' do
-    @mock_warden.expects(:authenticate).with(:scope => :admin)
-    @controller.current_admin
-  end
-
   test 'proxy current_user to authenticate with user scope' do
     @mock_warden.expects(:authenticate).with(:scope => :user)
     @controller.current_user
   end
 
-  test 'proxy user_authenticate! to authenticate with user scope' do
+  test 'proxy current_admin to authenticate with admin scope' do
+    @mock_warden.expects(:authenticate).with(:scope => :admin)
+    @controller.current_admin
+  end
+
+  test 'proxy current_publisher_account to authenticate with namespaced publisher account scope' do
+    @mock_warden.expects(:authenticate).with(:scope => :publisher_account)
+    @controller.current_publisher_account
+  end
+
+  test 'proxy authenticate_user! to authenticate with user scope' do
     @mock_warden.expects(:authenticate!).with(:scope => :user)
     @controller.authenticate_user!
   end
 
-  test 'proxy admin_authenticate! to authenticate with admin scope' do
+  test 'proxy authenticate_admin! to authenticate with admin scope' do
     @mock_warden.expects(:authenticate!).with(:scope => :admin)
     @controller.authenticate_admin!
   end
 
+  test 'proxy authenticate_publisher_account! to authenticate with namespaced publisher account scope' do
+    @mock_warden.expects(:authenticate!).with(:scope => :publisher_account)
+    @controller.authenticate_publisher_account!
+  end
+
   test 'proxy user_signed_in? to authenticate? with user scope' do
-    @mock_warden.expects(:authenticate?).with(:scope => :user)
-    @controller.user_signed_in?
+    @mock_warden.expects(:authenticate).with(:scope => :user).returns("user")
+    assert @controller.user_signed_in?
   end
 
   test 'proxy admin_signed_in? to authenticate? with admin scope' do
-    @mock_warden.expects(:authenticate?).with(:scope => :admin)
-    @controller.admin_signed_in?
+    @mock_warden.expects(:authenticate).with(:scope => :admin)
+    assert_not @controller.admin_signed_in?
+  end
+
+  test 'proxy publisher_account_signed_in? to authenticate? with namespaced publisher account scope' do
+    @mock_warden.expects(:authenticate?).with(:scope => :publisher_account)
+    @controller.publisher_account_signed_in?
   end
 
   test 'proxy user_session to session scope in warden' do
@@ -100,6 +80,12 @@ class ControllerAuthenticableTest < ActionController::TestCase
     @mock_warden.expects(:authenticate).with(:scope => :admin).returns(true)
     @mock_warden.expects(:session).with(:admin).returns({})
     @controller.admin_session
+  end
+
+  test 'proxy publisher_account_session from namespaced scope to session scope in warden' do
+    @mock_warden.expects(:authenticate).with(:scope => :publisher_account).returns(true)
+    @mock_warden.expects(:session).with(:publisher_account).returns({})
+    @controller.publisher_account_session
   end
 
   test 'sign in proxy to set_user on warden' do
