@@ -36,11 +36,11 @@ end
 begin
   require 'jeweler'
   Jeweler::Tasks.new do |s|
-    s.name = "devise"
+    s.name = "BadMinus-devise"
     s.version = Devise::VERSION.dup
     s.summary = "Flexible authentication solution for Rails with Warden"
     s.email = "contact@plataformatec.com.br"
-    s.homepage = "http://github.com/plataformatec/devise"
+    s.homepage = "http://github.com/BadMinus/devise"
     s.description = "Flexible authentication solution for Rails with Warden"
     s.authors = ['José Valim', 'Carlos Antônio']
     s.files =  FileList["[A-Z]*", "{app,config,lib}/**/*"]
