@@ -26,4 +26,13 @@ gem "warden", "0.10.7"
 gem "webrat", "0.7.0"
 gem "mocha", :require => false
 gem "bcrypt-ruby", :require => "bcrypt"
+
+group :mongo_mapper do
+  gem "mongo",        ">= 0.18.3"
+  gem "mongo_ext",    ">= 0.18.3", :require => false
+  gem "bson_ext"
+  gem "jnunemaker-validatable",  :git => "git://github.com/BadMinus/validatable.git"
+  gem "mongo_mapper", :git => "git://github.com/BadMinus/mongomapper.git"
+end
+
 gem "oauth2"

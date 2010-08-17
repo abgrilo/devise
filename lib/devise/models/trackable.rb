@@ -25,6 +25,10 @@ module Devise
 
         save(:validate => false)
       end
+      def update_tracked_sign_out_time_field!(request)
+        self.sign_out_time = Time.now
+        save(:validate => false)
+      end
     end
   end
 end
