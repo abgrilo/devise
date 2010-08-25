@@ -70,9 +70,9 @@ module Devise
 
   # If http authentication is enabled by default.
   mattr_accessor :http_authenticatable
-  @@http_authenticatable = true
+  @@http_authenticatable = false
 
-  # If http authentication is used for ajax requests. True by default.
+  # If http headers should be returned for ajax requests. True by default.
   mattr_accessor :http_authenticatable_on_xhr
   @@http_authenticatable_on_xhr = true
 
@@ -162,7 +162,11 @@ module Devise
 
   # When set to true, signing out an user signs out all other scopes.
   mattr_accessor :sign_out_all_scopes
-  @@sign_out_all_scopes = false
+  @@sign_out_all_scopes = true
+
+  # The default method used while signing out
+  mattr_accessor :sign_out_via
+  @@sign_out_via = :get
 
   # Oauth providers
   mattr_accessor :oauth_providers
