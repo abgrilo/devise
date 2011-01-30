@@ -37,7 +37,7 @@ begin
   require 'jeweler'
   Jeweler::Tasks.new do |s|
     root_files = FileList["README.rdoc", "MIT-LICENSE", "CHANGELOG.rdoc"]
-    s.name = "BadMinus-devise"
+    s.name = "devise"
     s.version = Devise::VERSION.dup
     s.summary = "Flexible authentication solution for Rails with Warden"
     s.email = "contact@plataformatec.com.br"
