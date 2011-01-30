@@ -20,7 +20,7 @@ class Warden::SessionSerializer
 
   def deserialize(keys)
     klass, id = keys
-    klass.constantize.find(:first, :conditions => { :id => id })
+    klass.constantize.first(:conditions => { :id => id })
   rescue NameError => e
     if e.message =~ /uninitialized constant/
       Rails.logger.debug "Trying to deserialize invalid class #{klass}"

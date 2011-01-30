@@ -89,14 +89,14 @@ module Devise
         #   end
         #
         def find_for_authentication(conditions)
-          find(:first, :conditions => conditions)
+          first(:conditions => conditions)
         end
 
         # Find an initialize a record setting an error if it can't be found.
         def find_or_initialize_with_error_by(attribute, value, error=:invalid) #:nodoc:
           if value.present?
             conditions = { attribute => value }
-            record = find(:first, :conditions => conditions)
+            record = first(:conditions => conditions)
           end
 
           unless record
@@ -116,7 +116,7 @@ module Devise
         def generate_token(column)
           loop do
             token = Devise.friendly_token
-            break token unless find(:first, :conditions => { column => token })
+            break token unless first(:conditions => { column => token })
           end
         end
       end

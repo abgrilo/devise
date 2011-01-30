@@ -1,7 +1,7 @@
 module Devise
   module Orm
     module MongoMapper
-      
+
       module Hook
         def devise_modules_hook!
           extend Schema
@@ -11,7 +11,7 @@ module Devise
           devise_modules.each { |m| send(m) if respond_to?(m, true) }
         end
       end
-      
+
       module Schema
         include Devise::Schema
         def apply_devise_schema(name, type, options={})
@@ -19,11 +19,12 @@ module Devise
           key name, type, options
         end
       end
-      
+
       module Compatibility
        extend ActiveSupport::Concern
          module ClassMethods
-           
+
+          # Somehow this doesn't work well with rpm_contrib
           def find(*args)
             case args.first
             when :first, :all
